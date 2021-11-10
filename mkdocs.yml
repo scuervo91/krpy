@@ -1,4 +1,4 @@
-site_name: Package
+site_name: krpy
 theme:
   name: material
   palette:
@@ -18,7 +18,7 @@ theme:
 nav:
   - Home: index.md
 
-repo_url: https://github.com/scuervo91/package
+repo_url: https://github.com/scuervo91/krpy
 repo_name: scuervo91/dcapy
 
 plugins:

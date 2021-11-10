@@ -1,7 +1,7 @@
-# {package}
+# krpy
 
-+ **Documentation** [http://scuervo91.github.io/{package}](http://scuervo91.github.io/{package})
-+ **Sorce Code** [https://github.com/scuervo91/{package}](https://github.com/scuervo91/{package})
++ **Documentation** [http://scuervo91.github.io/krpy](http://scuervo91.github.io/krpy)
++ **Sorce Code** [https://github.com/scuervo91/krpy](https://github.com/scuervo91/krpy)
 
 {package description}
 
@@ -15,7 +15,7 @@
 
 
 ```console
-$ pip install {package}
+$ pip install krpy
 
 ---> 100%
 ```
