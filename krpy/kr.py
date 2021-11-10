@@ -92,7 +92,7 @@ class Kr(BaseModel):
         int_cols = list(self.fields.keys()) if cols is None else cols
         
         for i in int_cols:
-            int_dict[i] = interp1d(self.pressure.value,self.fields[i],bounds_error=False,fill_value='extrapolate')(p)
+            int_dict[i] = interp1d(self.saturation,self.fields[i],bounds_error=False,fill_value='extrapolate')(p)
 
         int_df = pd.DataFrame(int_dict, index=p)
         int_df.index.name = 'saturation'
@@ -104,10 +104,10 @@ class Corey(BaseModel):
     nw: float = Field(2., description='Exponent for water saturation')
     no: float = Field(2., description='Exponent for oil saturation')
     npc: float = Field(2., description='Exponent for capillary pressure')
-    krw_end: float = Field(1., gt=0, lt=1, description='End-point for water relative permeability')
-    kro_end: float = Field(1., gt=0, lt=1, description='End-point for oil relative permeability')
+    krw_end: float = Field(1., gt=0, le=1, description='End-point for water relative permeability')
+    kro_end: float = Field(1., gt=0, le=1, description='End-point for oil relative permeability')
     pco_end: float = Field(0., description='End-point for capillary pressure')
-    
+    pd: float = Field(0., description='Drainage pressure')
     
 class Krow(Kr):
     swir: Optional[float] = Field(None, description='Irreducible water saturation')
@@ -121,7 +121,7 @@ class Krow(Kr):
         
         kro = kr_curve(son, corey.no, corey.kro_end)
         krw = kr_curve(swn, corey.nw, corey.krw_end)
-        pcwo = corey.pco_end * np.power(son,corey.npc)
+        pcwo = (corey.pco_end * np.power(son,corey.npc)) + corey.pd
         
         kr_ratio = kro / krw
         
@@ -230,6 +230,7 @@ class Krow(Kr):
             krax.set_ylabel('Kr []')
             krax.set_xlim([0,1])
             krax.set_ylim([0,1])
+            ax_list.append(krax)
 
           
         #Annotate
@@ -259,7 +260,7 @@ class Krow(Kr):
                 **ann_kw
             ) 
 
-        ax_list.append(krax)
+        
         
         if pc and not norm:
             if kr:
@@ -286,12 +287,12 @@ class Krow(Kr):
         
         return string
     
-    def fit(self, df:pd.DataFrame, sw:str=None, krw:str=None, kro:str=None):
+    def fit(self, df:pd.DataFrame, sw:str='sw', krw:str='krw', kro:str='kro'):
         
         if sw is None:
             sw_array = df.index.values 
         else:
-            sw_aray = df[sw].values
+            sw_array = df[sw].values
         
         d = {}
         
@@ -312,5 +313,22 @@ class Krow(Kr):
             d['kro_end'] = popt[1]
             
         return Corey(**d)
+    
+    def get_height(self, rhoo:float, rhow:float = 62.28, pcwo:str='pcwo'):
+        df = self.df()
+        
+        if pcwo not in df.columns:
+            raise ValueError('pcwo not in df')
+        
+        delta_rho = rhow - rhoo
+        h = (144*df[pcwo])/delta_rho
+        
+        self.fields['height'] = h
+        
+        return self
+        
+        
+        
+        
     
     
