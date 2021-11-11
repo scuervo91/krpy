@@ -287,19 +287,25 @@ class Krow(Kr):
         
         return string
     
-    def fit(self, df:pd.DataFrame, sw:str='sw', krw:str='krw', kro:str='kro'):
+    def fit(self, df:pd.DataFrame, sw:str='sw', krw:str='krw', kro:str='kro', swir:float=None, sor:float=None, guess_krw = None, guess_kro=None):
         
         if sw is None:
             sw_array = df.index.values 
         else:
             sw_array = df[sw].values
-        
+            
+        if swir is None:
+            swir = df.loc[df[krw]==0,sw].max()
+        if sor is None:
+            sor = df.loc[df[kro]==0,sw].min()
+            
+        swn = sw_normalize(sw_array, swir, sor)
         d = {}
         
         if krw is not None:
             krw_array = df[krw].values
         
-            popt, pcov = curve_fit(kr_curve, sw_array, krw_array, bounds=([0.01,0], [np.inf, 1]))
+            popt, pcov = curve_fit(kr_curve, swn, krw_array, bounds=([0.0,0], [np.inf, 1]), p0=guess_krw)
             
             d['nw'] = popt[0]
             d['krw_end'] = popt[1]
@@ -307,9 +313,9 @@ class Krow(Kr):
         if kro is not None:
             kro_array = df[kro].values
         
-            popt, pcov = curve_fit(kr_curve, 1-sw_array, kro_array, bounds=([0.01,0], [np.inf, 1]))
+            popt, pcov = curve_fit(kr_curve, 1-swn, kro_array, bounds=([0.0,0], [np.inf, 1]),p0=guess_kro)
 
-            d['nw'] = popt[0]
+            d['no'] = popt[0]
             d['kro_end'] = popt[1]
             
         return Corey(**d)
