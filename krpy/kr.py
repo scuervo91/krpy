@@ -114,7 +114,13 @@ class Krow(Kr):
     sor: Optional[float] = Field(None, description='Residual oil saturation')
     
     @validate_arguments
-    def from_corey(self, corey:Corey, swir = 0, sor = 0, n:int=10):
+    def from_corey(self, corey:Corey, swir = None, sor = None, n:int=10):
+        
+        if swir is None:
+            swir = self.swir
+        
+        if sor is None:
+            sor = self.sor
         
         swn = np.linspace(0,1,n)
         son = 1 - swn

@@ -3,7 +3,7 @@
 + **Documentation** [http://scuervo91.github.io/krpy](http://scuervo91.github.io/krpy)
 + **Sorce Code** [https://github.com/scuervo91/krpy](https://github.com/scuervo91/krpy)
 
-{package description}
+Python package utility to create Relative Permeabilities for Oil & Gas
 
 
 ## Requirements

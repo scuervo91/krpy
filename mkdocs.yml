@@ -17,6 +17,8 @@ theme:
 
 nav:
   - Home: index.md
+  - Tutorial:
+    - Intro: examples/1-krow/01-krow_corey.ipynb
 
 repo_url: https://github.com/scuervo91/krpy
 repo_name: scuervo91/dcapy
