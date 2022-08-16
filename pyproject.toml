@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "krpy"
-version = "0.1.0"
+version = "0.1.1"
 description = "Relative Permeabilities Utility Tool"
 authors = ["Santiago Cuervo <scuervo91@gmail.com>"]
 license = "MIT"

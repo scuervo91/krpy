@@ -109,19 +109,47 @@ class Corey(BaseModel):
     pco_end: float = Field(0., description='End-point for capillary pressure')
     pd: float = Field(0., description='Drainage pressure')
     
+    @classmethod
+    def fit(cls, df, sw:str='sw', krw:str='krw', kro:str='kro', swir:float=None, sor:float=None, guess_krw = None, guess_kro=None):
+        
+        if sw is None:
+            sw_array = df.index.values 
+        else:
+            sw_array = df[sw].values
+            
+        if swir is None:
+            swir = df.loc[df[krw]==0,sw].max()
+        if sor is None:
+            sor = df.loc[df[kro]==0,sw].min()
+            
+        swn = sw_normalize(sw_array, swir, sor)
+        d = {}
+        
+        if krw is not None:
+            krw_array = df[krw].values
+        
+            popt, pcov = curve_fit(kr_curve, swn, krw_array, bounds=([0.0,0], [np.inf, 1]), p0=guess_krw)
+            
+            d['nw'] = popt[0]
+            d['krw_end'] = popt[1]
+            
+        if kro is not None:
+            kro_array = df[kro].values
+        
+            popt, pcov = curve_fit(kr_curve, 1-swn, kro_array, bounds=([0.0,0], [np.inf, 1]),p0=guess_kro)
+
+            d['no'] = popt[0]
+            d['kro_end'] = popt[1]
+            
+        return cls(**d)
+    
 class Krow(Kr):
     swir: Optional[float] = Field(None, description='Irreducible water saturation')
     sor: Optional[float] = Field(None, description='Residual oil saturation')
     
-    @validate_arguments
-    def from_corey(self, corey:Corey, swir = None, sor = None, n:int=10):
-        
-        if swir is None:
-            swir = self.swir
-        
-        if sor is None:
-            sor = self.sor
-        
+    @classmethod
+    def from_corey(cls, corey:Corey, swir = None, sor = None, n:int=10):
+               
         swn = np.linspace(0,1,n)
         son = 1 - swn
         
@@ -140,16 +168,13 @@ class Krow(Kr):
                 'swn': swn,
                 'kr_ratio': kr_ratio
             }    
-        self.saturation = sw
-        self.swir = swir
-        self.sor = sor
-        if self.fields is None:
-            self.fields = dict_krs
-        else:
-            self.fields.update(dict_krs)
-        
-        
-        return self
+        return cls(
+            saturation = sw,
+            swir = swir,
+            sor = sor,
+            fields = dict_krs
+        )
+
     
     def plot(
         self,
@@ -293,38 +318,7 @@ class Krow(Kr):
         
         return string
     
-    def fit(self, df:pd.DataFrame, sw:str='sw', krw:str='krw', kro:str='kro', swir:float=None, sor:float=None, guess_krw = None, guess_kro=None):
-        
-        if sw is None:
-            sw_array = df.index.values 
-        else:
-            sw_array = df[sw].values
-            
-        if swir is None:
-            swir = df.loc[df[krw]==0,sw].max()
-        if sor is None:
-            sor = df.loc[df[kro]==0,sw].min()
-            
-        swn = sw_normalize(sw_array, swir, sor)
-        d = {}
-        
-        if krw is not None:
-            krw_array = df[krw].values
-        
-            popt, pcov = curve_fit(kr_curve, swn, krw_array, bounds=([0.0,0], [np.inf, 1]), p0=guess_krw)
-            
-            d['nw'] = popt[0]
-            d['krw_end'] = popt[1]
-            
-        if kro is not None:
-            kro_array = df[kro].values
-        
-            popt, pcov = curve_fit(kr_curve, 1-swn, kro_array, bounds=([0.0,0], [np.inf, 1]),p0=guess_kro)
 
-            d['no'] = popt[0]
-            d['kro_end'] = popt[1]
-            
-        return Corey(**d)
     
     def get_height(self, rhoo:float, rhow:float = 62.28, pcwo:str='pcwo'):
         df = self.df()
