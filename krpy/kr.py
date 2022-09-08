@@ -23,7 +23,7 @@ def kr_curve(sn:np.ndarray, n:float, krend:float) -> np.ndarray:
     """
     return krend * np.power(sn,n)
 
-def sw_normalize(sw:np.ndarray, swir:float, sor:float) -> np.ndarray:
+def sw_normalize(sw:np.ndarray, swir:float, sor:float, sgc:float=0) -> np.ndarray:
     """sw_normalize [Convert array of water saturation to normalized water saturation]
     Parameters
     ----------
@@ -38,10 +38,28 @@ def sw_normalize(sw:np.ndarray, swir:float, sor:float) -> np.ndarray:
     np.ndarray
         [Normalized water Saturation]
     """
-    swn = (sw - swir) / (1 - swir - sor)
+    swn = (sw - swir) / (1 - swir - sor - sgc)
     return swn
 
-def sw_denormalize(swn:np.ndarray, swir:float, sor:float) -> np.ndarray:
+def sg_normalize(sg:np.ndarray, swir:float, sor:float, sgc:float=0) -> np.ndarray:
+    """sg_normalize [Convert array of water saturation to normalized water saturation]
+    Parameters
+    ----------
+    sw : np.ndarray
+        [Water saturation array]
+    swir : float
+        [Irreducible water saturation]
+    sor : float
+        [Residual Oil Saturation]
+    Returns
+    -------
+    np.ndarray
+        [Normalized water Saturation]
+    """
+    sgn = (sg - sgc) / (1 - swir - sor - sgc)
+    return sgn
+
+def sw_denormalize(swn:np.ndarray, swir:float, sor:float,sgc:float=0) -> np.ndarray:
     """sw_normalize [Convert array of normalized water saturation to water saturation]
     Parameters
     ----------
@@ -56,12 +74,33 @@ def sw_denormalize(swn:np.ndarray, swir:float, sor:float) -> np.ndarray:
     np.ndarray
         [water Saturation]
     """
-    sw = swn * (1 - swir - sor) + swir 
+    sw = swn * (1 - swir - sor - sgc) + sgc 
     return sw
+
+def sg_denormalize(sgn:np.ndarray, swir:float, sor:float,sgc:float=0) -> np.ndarray:
+    """sg_normalize [Convert array of normalized water saturation to water saturation]
+    Parameters
+    ----------
+    sw : np.ndarray
+        [normalized Water saturation array]
+    swir : float
+        [Irreducible water saturation]
+    sor : float
+        [Residual Oil Saturation]
+    Returns
+    -------
+    np.ndarray
+        [water Saturation]
+    """
+    sg = sgn * (1 - swir - sor - sgc) + swir 
+    return sg
 
 class Kr(BaseModel):
     saturation: Optional[Union[List[float], np.ndarray]] = Field(None)
     fields: Optional[Dict[str,Union[List[float], np.ndarray]]] = Field(None)
+    swir: Optional[float] = Field(None, description='Irreducible water saturation')
+    sor: Optional[float] = Field(None, description='Residual oil saturation')
+    sgc: Optional[float] = Field(None, description='Residual gas saturation')
 
     @validator('saturation')
     def check_array_saturation_order(cls, v):
@@ -103,11 +142,16 @@ class Kr(BaseModel):
 class Corey(BaseModel):
     nw: float = Field(2., description='Exponent for water saturation')
     no: float = Field(2., description='Exponent for oil saturation')
-    npc: float = Field(2., description='Exponent for capillary pressure')
+    ng: float = Field(2., description='Exponent for gas saturation')
+    npcwo: float = Field(2., description='Exponent for capillary pressure Oil water')
+    npcog: float = Field(2., description='Exponent for capillary pressure Oil Gas')
     krw_end: float = Field(1., gt=0, le=1, description='End-point for water relative permeability')
     kro_end: float = Field(1., gt=0, le=1, description='End-point for oil relative permeability')
+    krg_end: float = Field(1., gt=0, le=1, description='End-point for gas relative permeability')
     pco_end: float = Field(0., description='End-point for capillary pressure')
-    pd: float = Field(0., description='Drainage pressure')
+    pcg_end: float = Field(0., description='End-point for capillary pressure')
+    pdwo: float = Field(0., description='Drainage pressure Oil Water')
+    pdog: float = Field(0., description='Drainage pressure Oil Gas')
     
     @classmethod
     def fit(cls, df, sw:str='sw', krw:str='krw', kro:str='kro', swir:float=None, sor:float=None, guess_krw = None, guess_kro=None):
@@ -142,24 +186,70 @@ class Corey(BaseModel):
             d['kro_end'] = popt[1]
             
         return cls(**d)
-    
-class Krow(Kr):
-    swir: Optional[float] = Field(None, description='Irreducible water saturation')
-    sor: Optional[float] = Field(None, description='Residual oil saturation')
+
+class Krog(Kr):
     
     @classmethod
-    def from_corey(cls, corey:Corey, swir = None, sor = None, n:int=10):
+    def from_corey(
+        cls,
+        corey:Corey,
+        swir=None,
+        sor=None,
+        sgc=0,
+        n:int=10
+    ):
+
+        sgn = np.linspace(0,1,n)
+        son = 1 - sgn
+        
+        kro = kr_curve(son, corey.no, corey.kro_end)
+        krg = kr_curve(sgn, corey.ng, corey.krg_end)
+        pcog = (corey.pcg_end * np.power(son,corey.npcog)) + corey.pdog
+        
+        kr_ratio = krg / kro
+        
+        sg = sg_denormalize(sgn, swir, sor,sgc=sgc)
+
+        dict_krs = {
+                'krg': krg,
+                'kro': kro,
+                'pcog': pcog,
+                'sgn': sgn,
+                'kr_ratio': kr_ratio
+            }    
+        return cls(
+            saturation = sg,
+            swir = swir,
+            sor = sor,
+            sgc = sgc,
+            fields = dict_krs
+        )
+
+    def to_ecl(self,krg = 'krg',kro = 'kro',pcog = 'pcog'):
+        
+        df = self.df()[[krg,kro,pcog]]
+        string = "SGOF\n"
+        
+        string += df.reset_index().to_string(header=False, index=False) +'/\n'
+        
+        return string
+        
+        
+class Krow(Kr):
+
+    @classmethod
+    def from_corey(cls, corey:Corey, swir = None, sor = None, sgc = 0, n:int=10):
                
         swn = np.linspace(0,1,n)
         son = 1 - swn
         
         kro = kr_curve(son, corey.no, corey.kro_end)
         krw = kr_curve(swn, corey.nw, corey.krw_end)
-        pcwo = (corey.pco_end * np.power(son,corey.npc)) + corey.pd
+        pcwo = (corey.pco_end * np.power(son,corey.npcwo)) + corey.pdwo
         
         kr_ratio = kro / krw
         
-        sw = sw_denormalize(swn, swir, sor)
+        sw = sw_denormalize(swn, swir, sor,sgc=sgc)
 
         dict_krs = {
                 'krw': krw,
@@ -172,6 +262,7 @@ class Krow(Kr):
             saturation = sw,
             swir = swir,
             sor = sor,
+            sgc = sgc,
             fields = dict_krs
         )
 
@@ -332,9 +423,3 @@ class Krow(Kr):
         self.fields['height'] = h
         
         return self
-        
-        
-        
-        
-    
-    
