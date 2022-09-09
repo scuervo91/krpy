@@ -18,7 +18,8 @@ theme:
 nav:
   - Home: index.md
   - Tutorial:
-    - Intro: examples/1-krow/01-krow_corey.ipynb
+    - Krw: examples/1-krow/01-krow_corey.ipynb
+    - Krg: examples/2-krog/01-krog_corey.ipynb
   - Releases Notes: releases_notes.md
 
 repo_url: https://github.com/scuervo91/krpy
