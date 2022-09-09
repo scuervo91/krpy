@@ -74,7 +74,7 @@ def sw_denormalize(swn:np.ndarray, swir:float, sor:float,sgc:float=0) -> np.ndar
     np.ndarray
         [water Saturation]
     """
-    sw = swn * (1 - swir - sor - sgc) + sgc 
+    sw = swn * (1 - swir - sor - sgc) + swir 
     return sw
 
 def sg_denormalize(sgn:np.ndarray, swir:float, sor:float,sgc:float=0) -> np.ndarray:
@@ -92,7 +92,7 @@ def sg_denormalize(sgn:np.ndarray, swir:float, sor:float,sgc:float=0) -> np.ndar
     np.ndarray
         [water Saturation]
     """
-    sg = sgn * (1 - swir - sor - sgc) + swir 
+    sg = sgn * (1 - swir - sor - sgc) + sgc
     return sg
 
 class Kr(BaseModel):
@@ -233,6 +233,138 @@ class Krog(Kr):
         string += df.reset_index().to_string(header=False, index=False) +'/\n'
         
         return string
+    
+    def plot(
+        self,
+        krg = 'krg',
+        kro = 'kro',
+        pcog = 'pcog',        
+        ax=None,
+        norm=False, 
+        ann=False, 
+        pc = False,
+        kr = True,
+        krg_kw={},
+        kro_kw={}, 
+        ann_kw = {},
+        pcog_kw = {}
+    ):
+
+        df = self.df()
+        
+        ax_list = []
+        #Set default plot properties krg
+        def_krg_kw = {
+            'color': 'red',
+            'linestyle':'--',
+            'linewidth': 2
+            }    
+
+        for (k,v) in def_krg_kw.items():
+            if k not in krg_kw:
+                krg_kw[k]=v
+
+        #Set default plot properties kro
+        def_kro_kw = {
+            'color': 'green',
+            'linestyle':'--',
+            'linewidth': 2
+            }    
+
+        for (k,v) in def_kro_kw.items():
+            if k not in kro_kw:
+                kro_kw[k]=v
+
+        def_pc_kw = {
+            'color': 'black',
+            'linestyle':'--',
+            'linewidth': 1
+            }    
+
+        for (k,v) in def_pc_kw.items():
+            if k not in pcog_kw:
+                pcog_kw[k]=v
+
+        #Set default plot properties kro
+        def_ann_kw = {
+            'xytext': (0,15),
+            'textcoords':'offset points',
+            'arrowprops': {'arrowstyle':"->"},
+            'bbox':{'boxstyle':'round', 'fc':'0.8'},
+            'fontsize':11
+            }    
+
+        for (k,v) in def_ann_kw.items():
+            if k not in ann_kw:
+                ann_kw[k]=v
+
+
+        if kr:
+            if norm:
+                sg_x = sg_normalize(df.index, self.swir, self.sor, sgc=self.sgc)
+                krg = df[krg].values
+                kro = df[kro].values
+            else:
+                sg_x = df.index 
+                krg = df[krg].values
+                kro = df[kro].values
+
+            #Set the axes      
+            krax= ax or plt.gca()
+            krax.plot(sg_x, krg, **krg_kw)
+            krax.plot(sg_x, kro, **kro_kw)
+
+            #set labels
+            krax.set_xlabel('Gas Saturation []')
+            krax.set_ylabel('Kr []')
+            krax.set_xlim([0,1])
+            krax.set_ylim([0,1])
+            ax_list.append(krax)
+
+          
+        #Annotate
+        if ann and kr and not norm:
+            krax.annotate(
+                'sgir',
+                xy = (df.index[0],df[krg].iloc[0]),
+                xycoords='data',
+                **ann_kw
+            ) 
+            krax.annotate(
+                'sgor',
+                xy = (df.index[-1],df[kro].iloc[-1]),
+                xycoords='data',
+                **ann_kw
+            ) 
+            krax.annotate(
+                'kroend',
+                xy = (df.index[0],df[kro].iloc[0]),
+                xycoords='data',
+                **ann_kw
+            ) 
+            krax.annotate(
+                'krgend',
+                xy = (df.index[-1],df[krg].iloc[-1]),
+                xycoords='data',
+                **ann_kw
+            ) 
+
+        
+        
+        if pc and not norm:
+            if kr:
+                pcax=krax.twinx()
+                pcax.yaxis.set_label_position("right")
+                pcax.yaxis.tick_right()
+            else:
+                pcax= ax or plt.gca()
+
+            pcax.plot(df.index, df[pcog], **pcog_kw)
+            pcax.set_ylabel('Capillary Pressure [psi]')
+            
+            ax_list.append(pcax)
+        
+        return ax_list
         
         
 class Krow(Kr):
